@@ -1,8 +1,12 @@
 name: Release
+
 on:
   push:
     tags:
       - v*.*.*
+
+env:
+  PACKAGE_NAME: "openqa_log_local"
 
 jobs:
   details:
@@ -28,20 +32,20 @@ jobs:
           fi
 
   check_pypi:
-    runs-on: ubuntu-latest
     needs: details
+    runs-on: ubuntu-latest
     steps:
       - name: Fetch information from PyPI
         run: |
-          PACKAGE_NAME="openqa-log-local"
-          response=$(curl -s https://pypi.org/pypi/$PACKAGE_NAME/json || echo "{}")
-          latest_previous_version=$(echo $response | jq --raw-output ".info.version")
+          response=$(curl -s https://pypi.org/pypi/${{ env.PACKAGE_NAME }}/json || echo "{}")
+          latest_previous_version=$(echo $response | jq --raw-output "select(.releases != null) | .releases | keys_unsorted | last")
           if [ -z "$latest_previous_version" ]; then
             echo "Package not found on PyPI."
             latest_previous_version="0.0.0"
           fi
           echo "Latest version on PyPI: $latest_previous_version"
           echo "latest_previous_version=$latest_previous_version" >> $GITHUB_ENV
+
       - name: Compare versions and exit if not newer
         run: |
           NEW_VERSION=${{ needs.details.outputs.new_version }}
@@ -54,8 +58,8 @@ jobs:
           fi
 
   build:
+    needs: [details, check_pypi]
     runs-on: ubuntu-latest
-    needs: check_pypi
     steps:
       - uses: actions/checkout@v4
       - name: Set up uv
@@ -86,16 +90,22 @@ jobs:
 
   github_release:
     name: Create GitHub Release
+    needs: [build, details]
     runs-on: ubuntu-latest
-    needs: build
     permissions:
       contents: write
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
           name: dist
-          path: ./dist/
+          path: dist/
+
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
