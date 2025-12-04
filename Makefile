@@ -14,7 +14,7 @@ mypy:
 	uv run mypy --check-untyped-defs src/
 
 test:
-	uv run pytest --version
+	uv run pytest
 
 build:
 	uv build
