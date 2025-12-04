@@ -39,3 +39,6 @@ Thumbs.db
 
 # Logs
 logs/*.log
+
+# Ignore default local cache
+.cache/
