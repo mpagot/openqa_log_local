@@ -4,19 +4,24 @@ from .main import openQA_log_local
 
 
 @click.group()
-@click.option("--debug/--no-debug", default=False)
+@click.option(
+    "--log-level",
+    default="ERROR",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
+    help="Set the logging level.",
+)
 @click.pass_context
-def cli(ctx, debug):
+def cli(ctx, log_level):
     """A CLI to locally collect and inspect logs from openQA.
 
     Files will be locally cached on disk, downloaded and read transparently.
     """
     ctx.ensure_object(dict)
-    ctx.obj["DEBUG"] = debug
-    if debug:
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.WARNING)
+    # Convert string log level to logging module's constant
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError(f"Invalid log level: {log_level}")
+    logging.basicConfig(level=numeric_level)
 
 
 @cli.command()

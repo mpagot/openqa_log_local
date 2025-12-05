@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Optional
+import re
+from typing import Any, List, Optional
 
 import requests
 import requests.exceptions
@@ -66,11 +67,11 @@ class openQAClientWrapper:
             self._client = client
         return self._client
 
-    def get_job_details(self, job_id: int) -> Optional[dict[str, Any]]:
+    def get_job_details(self, job_id: str) -> Optional[dict[str, Any]]:
         """Fetches the details for a specific job from the openQA API.
 
         Args:
-            job_id (int): The ID of the job.
+            job_id (str): The ID of the job.
 
         Raises:
             openQAClientAPIError: For non-404 API errors.
@@ -103,3 +104,42 @@ class openQAClientWrapper:
             error_message = f"Connection to host '{self.hostname}' failed"
             self.logger.error(error_message)
             raise openQAClientConnectionError(error_message) from e
+
+    def get_log_list(self, job_id: str) -> List[str]:
+        """
+        Get a list of log files associated to an openQA job.
+
+        This method does not download any log files. It fetches the
+        'downloads_ajax' page and parses it to extract the filenames.
+
+        Args:
+            job_id (str): The job ID.
+
+        Returns:
+            List[str]: A list of log file names.
+        """
+        url = f"{self.hostname}/tests/{job_id}/downloads_ajax"
+        # The openQA web UI is sometimes deployed without a valid certificate
+        # for the https connection.
+        self.logger.warning(
+            "SSL certificate verification disabled for client connecting to %s", url
+        )
+        try:
+            response = requests.get(url, verify=False)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Failed to fetch log list from {url}: {e}")
+            return []
+
+        # Use regex to find all occurrences of the pattern
+        # The pattern looks for string between > and </a>
+        # and it is not greedy
+        pattern = re.compile(r">([^<]+?)</a>")
+        matches = pattern.findall(response.text)
+
+        # The file name can be splitted in multiple lines. In that case, an
+        # entry is composed by multiple spaces and new lines.
+        # Let's clean it up
+        ret = [item.strip() for item in matches if item.strip()]
+
+        return ret

@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from .client import openQAClientWrapper
@@ -59,54 +60,75 @@ class openQA_log_local:
             self.logger,
         )
 
-    def get_details(self, job_id: int) -> Optional[Dict[str, Any]]:
+    def get_details(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get job details for a specific openQA job.
+        Start looking for in the cache and eventually fall back to fetch from openQA.
+        If sucesfully fetched from opnQA, the data is saved in the cache.
 
         Args:
-            job_id (int): The job ID.
+            job_id (str): The job ID.
 
         Returns:
             Optional[Dict[str, Any]]: A dictionary containing job details,
             or None if the job is not found.
         """
-        job_details: Optional[Dict[str, Any]] = None
-        if not self.cache.is_details_cached(str(job_id)):
-            self.logger.info(f"Cache miss for job {job_id} details.")
-            job_details = self.client.get_job_details(job_id)
-            # Assuming we don't have the log files list at this point.
-            # We will update the cache when we fetch the log files.
-            if job_details:
-                self.cache.write_details(str(job_id), job_details, [])
-        else:
-            self.logger.info(f"Cache hit for job {job_id} details.")
-            job_details = self.cache.get_job_details(str(job_id))
-
-        return job_details
+        data: Optional[Dict[str, Any]] = None
+        data = self.cache.get_job_details(job_id)
+        if data:
+            self.logger.info("Cache hit for job %s details.", job_id)
+            return data
+        self.logger.info("Cache miss for job %s details.", job_id)
+        data = self.client.get_job_details(job_id)
+        if not data:
+            self.logger.info(
+                "Cache miss and data missing on openQA too for job %s details", job_id
+            )
+            return None
+        self.cache.write_details(job_id, data)
+        return data
 
     def get_log_list(
-        self, job_id: int, name_pattern: Optional[str] = None
+        self, job_id: str, name_pattern: Optional[str] = None
     ) -> List[str]:
         """Get a list of log files associated to an openQA job.
 
         This method does not download any log files.
 
         Args:
-            job_id (int): The job ID.
+            job_id (str): The job ID.
             name_pattern (Optional[str]): A regex pattern to filter log files by name.
 
         Returns:
             List[str]: A list of log file names.
         """
-        return []
+        data: Optional[List[str]] = None
+        data = self.cache.get_log_list(str(job_id))
 
-    def get_log_data(self, job_id: int, filename: str) -> str:
+        if not data:
+            self.logger.info("Cache miss for job %s log list.", job_id)
+            data = self.client.get_log_list(job_id)
+            if not data:
+                self.logger.info(
+                    "Cache miss and data missing on openQA too for job %s log list.",
+                    job_id,
+                )
+                return []
+            self.cache.write_log_list(job_id, data)
+
+        if name_pattern:
+            regex = re.compile(name_pattern)
+            data = [item for item in data if regex.match(item)]
+            self.logger.error(data)
+        return data
+
+    def get_log_data(self, job_id: str, filename: str) -> str:
         """Get content of a single log file.
 
         The file is downloaded to the cache if not already available locally.
         All the log file content is returned.
 
         Args:
-            job_id (int): The job ID.
+            job_id (str): The job ID.
             filename (str): The name of the log file.
 
         Returns:
@@ -114,13 +136,13 @@ class openQA_log_local:
         """
         return ""
 
-    def get_log_filename(self, job_id: int, filename: str) -> str:
+    def get_log_filename(self, job_id: str, filename: str) -> str:
         """Get absolute path with filename of a single log file from the cache.
 
         The file is downloaded to the cache if not already available locally.
 
         Args:
-            job_id (int): The job ID.
+            job_id (str): The job ID.
             filename (str): The name of the log file.
 
         Returns:
