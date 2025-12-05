@@ -1,6 +1,6 @@
 [project]
 name = "openqa-log-local"
-version = "0.0.1"
+version = "0.0.2"
 description = "Create a local cache of openQA job log files"
 readme = "README.md"
 authors = [

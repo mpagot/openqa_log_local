@@ -43,7 +43,7 @@ log_details = oll.get_details(job_id=1234)
 # Get a list of log files associated to an openQA job.
 # No download any log file yet.
 log_list = oll.get_log_list(job_id=1234)
-log_txt_list = oll.get_log_list(job_id=4567, name_pattern=[r'*\.txt'])
+log_txt_list = oll.get_log_list(job_id=4567, name_pattern=r".*\\.txt")
 
 # Get content of a single log file. The file is downloaded to the cache
 # if not already available locally.
@@ -65,17 +65,23 @@ oll = openQA_log_local(
     time_to_live=3600)
 ```
 
-Or also forced to be ignored and refreshed
+... but also ignored and always refreshed :
 
 ```python
-oll = openQA_log_local(
-    host='http://openqa.opensuse.org',
-    user_ignore_cache)
+oll = openQA_log_local(host='http://openqa.opensuse.org', time_to_live=0)
 ```
+
 
 ### CLI
 
 The package also provides a command-line interface (CLI) for interacting with openQA logs.
+
+To see INFO and DEBUG messages, you can use the `--log-level` option:
+```bash
+uv run openqa-log-local --log-level INFO get-log-list --host http://openqaworker15.qa.suse.cz --job-id 353681
+```
+
+This will show messages indicating whether there was a cache hit or miss.
 
 #### Get Job Details
 
