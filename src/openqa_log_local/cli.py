@@ -2,9 +2,11 @@ import click
 import logging
 import json
 from .main import openQA_log_local
+from importlib.metadata import version
 
 
 @click.group()
+@click.version_option(version=version("openqa-log-local"))
 @click.option(
     "--host", required=True, help="The openQA host URL (e.g., openqa.example.com)."
 )
