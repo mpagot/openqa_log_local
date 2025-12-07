@@ -42,6 +42,13 @@ def test_cache_creation(cache):
     assert not host_path.exists()
 
 
+def test_cache_creation_invalid(tmp_path, app_logger):
+    with pytest.raises(ValueError):
+        openQACache(
+            str(tmp_path / "WAR_GAME"), "telnet://WOPR", 1024 * 1024, -1, app_logger
+        )
+
+
 def test_get_job_details_when_no_file(cache):
     """Test get_job_details returns None when no cache file exists."""
     assert cache.instance.get_job_details("1") is None

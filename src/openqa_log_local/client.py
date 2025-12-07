@@ -1,6 +1,7 @@
 import logging
 import re
 from typing import Any, List, Optional
+import urllib3
 
 import requests
 import requests.exceptions
@@ -42,30 +43,62 @@ class openQAClientWrapper:
         is lazily initialized on first use.
 
         Args:
-            hostname (str): The openQA host URL.
+            hostname (str): The openQA host, without scheme.
             logger (logging.Logger): The logger instance to use.
         """
+        if "://" in hostname:
+            raise ValueError(
+                f"Invalid hostname format: {hostname}. Should not contain '://'"
+            )
         self.logger = logger
         self.hostname = hostname
         self._client: Optional[OpenQA_Client] = None
+        self.scheme: Optional[str] = None
+
+        # The openQA web UI is sometimes deployed without a valid certificate
+        # for the https connection. We are disabling SSL verification and we
+        # do not want to bother user with the warning message.
+        # The warning is still visible at DEBUG log level
+        if self.logger.getEffectiveLevel() > logging.DEBUG:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     @property
     def client(self) -> OpenQA_Client:
         """Lazily initializes and returns the OpenQA_Client instance.
-
+        It tries to connect using https first, and fall back to http if it fails.
         Returns:
             OpenQA_Client: The initialized openqa_client instance.
         """
-        if self._client is None:
-            self.logger.info("Initializing OpenQA_Client for %s", self.hostname)
-            client = OpenQA_Client(server=self.hostname)
+        if self._client:
+            return self._client
+
+        # Try HTTPS first
+        try:
+            self.logger.info("Trying to connect to %s with https", self.hostname)
+            client = OpenQA_Client(server=f"https://{self.hostname}")
             client.session.verify = False
-            self.logger.warning(
-                "SSL certificate verification disabled for client connecting to %s",
-                self.hostname,
-            )
+            # check connectivity
+            client.openqa_request("GET", "jobs", params={"limit": 1})
+            self.scheme = "https"
             self._client = client
-        return self._client
+            return self._client
+        except (RequestError, requests.exceptions.ConnectionError):
+            self.logger.warning("Connection with https failed, trying http")
+
+        # Fallback to HTTP
+        try:
+            self.logger.info("Trying to connect to %s with http", self.hostname)
+            client = OpenQA_Client(server=f"http://{self.hostname}")
+            client.session.verify = False
+            # check connectivity
+            client.openqa_request("GET", "jobs", params={"limit": 1})
+            self.scheme = "http"
+            self._client = client
+            return self._client
+        except (RequestError, requests.exceptions.ConnectionError) as e:
+            raise openQAClientConnectionError(
+                f"Failed to connect to {self.hostname}"
+            ) from e
 
     def get_job_details(self, job_id: str) -> Optional[dict[str, Any]]:
         """Fetches the details for a specific job from the openQA API.
@@ -88,7 +121,7 @@ class openQAClientWrapper:
             job = response.get("job")
             if not job:
                 raise openQAClientAPIError(
-                    f"Could not find 'job' key in API response for ID {job_id}."
+                    f"Could not find 'job'::'{job}' key in API response '{response}' for ID {job_id}."
                 )
             return job
         except RequestError as e:
@@ -118,7 +151,12 @@ class openQAClientWrapper:
         Returns:
             List[str]: A list of log file names.
         """
-        url = f"{self.hostname}/tests/{job_id}/downloads_ajax"
+
+        # This method is not based on client but only on request,
+        # run a dummy call to client
+        # to have schema properly populated
+        self.client.openqa_request("GET", "jobs", params={"limit": 1})
+        url = f"{self.scheme}://{self.hostname}/tests/{job_id}/downloads_ajax"
         # The openQA web UI is sometimes deployed without a valid certificate
         # for the https connection.
         self.logger.warning(

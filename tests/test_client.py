@@ -18,6 +18,12 @@ def test_client_initialization(app_logger):
     assert client._client is None
 
 
+def test_client_initializationi_invalid(app_logger):
+    """Test that the client is initialized"""
+    with pytest.raises(ValueError):
+        openQAClientWrapper("telnet://WOPR", app_logger)
+
+
 def test_lazy_client_initialization(app_logger):
     """Test that the OpenQA_Client is lazily initialized and SSL warning is logged."""
     client = openQAClientWrapper("WOPR", app_logger)
@@ -36,7 +42,7 @@ def test_lazy_client_initialization(app_logger):
         initialized_client = client.client
 
         # Check that OpenQA_Client was called once
-        mock_openqa_client.assert_called_once_with(server="WOPR")
+        mock_openqa_client.assert_called_with(server="https://WOPR")
         # Check that the instance is now stored
         assert client._client is not None
         # Check that SSL verification is disabled
@@ -111,9 +117,11 @@ def test_get_job_details_missing_job_key(mock_client, app_logger):
 
 
 @patch("requests.get")
-def test_get_log_list_success(mock_get, app_logger):
+@patch("openqa_log_local.client.openQAClientWrapper.client", new_callable=PropertyMock)
+def test_get_log_list_success(mock_client, mock_get, app_logger):
     """Test get_log_list for a successful API call."""
     wrapper = openQAClientWrapper("WOPR", app_logger)
+    wrapper.scheme = "http"
     job_id = 123
     html_content = """
     <h5>Result files</h5>
@@ -132,14 +140,16 @@ def test_get_log_list_success(mock_get, app_logger):
 
     assert log_list == ["biology.txt", "english 172", "WORLD HISTORY"]
     mock_get.assert_called_once_with(
-        f"WOPR/tests/{job_id}/downloads_ajax", verify=False
+        f"http://WOPR/tests/{job_id}/downloads_ajax", verify=False
     )
 
 
 @patch("requests.get")
-def test_get_log_list_http_error(mock_get, app_logger):
+@patch("openqa_log_local.client.openQAClientWrapper.client", new_callable=PropertyMock)
+def test_get_log_list_http_error(mock_client, mock_get, app_logger):
     """Test get_log_list for an HTTP error."""
     wrapper = openQAClientWrapper("WOPR", app_logger)
+    wrapper.scheme = "http"
     job_id = 123
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = requests.exceptions.RequestException
@@ -148,3 +158,74 @@ def test_get_log_list_http_error(mock_get, app_logger):
     log_list = wrapper.get_log_list(job_id)
 
     assert log_list == []
+    mock_get.assert_called_once_with(
+        f"http://WOPR/tests/{job_id}/downloads_ajax", verify=False
+    )
+
+
+@patch("openqa_log_local.client.OpenQA_Client")
+def test_client_https_fallback(MockOpenQA_Client, app_logger):
+    """Test the client's fallback from HTTPS to HTTP."""
+    mock_https_client = MagicMock()
+    mock_https_client.openqa_request.side_effect = RequestError(
+        "GET", "url", 500, "Internal Server Error"
+    )
+
+    mock_http_client = MagicMock()
+    mock_http_client.openqa_request.side_effect = [
+        {"jobs": []},  # for the check
+        {"job": "Hacker"},  # for get_job_details
+    ]
+
+    def client_side_effect(server, **kwargs):
+        if server.startswith("https://"):
+            return mock_https_client
+        return mock_http_client
+
+    MockOpenQA_Client.side_effect = client_side_effect
+
+    client = openQAClientWrapper(hostname="example.com", logger=app_logger)
+    client.get_job_details("123")
+
+    # verify https has been called first, then http
+    assert mock_https_client.openqa_request.call_count == 1
+    assert (
+        mock_http_client.openqa_request.call_count == 2
+    )  # one for check, one for get_job_details
+    assert client.scheme == "http"
+
+
+@patch("openqa_log_local.client.OpenQA_Client")
+def test_client_https_success(MockOpenQA_Client, app_logger):
+    """Test the client's successful connection with HTTPS."""
+    mock_https_client = MagicMock()
+    mock_https_client.openqa_request.side_effect = [
+        {"jobs": []},
+        {"job": {"id": 123}},
+    ]
+
+    MockOpenQA_Client.return_value = mock_https_client
+
+    client = openQAClientWrapper(hostname="example.com", logger=app_logger)
+    details = client.get_job_details("123")
+
+    assert (
+        mock_https_client.openqa_request.call_count == 2
+    )  # one for check, one for get_job_details
+    assert client.scheme == "https"
+    assert details == {"id": 123}
+
+
+@patch("openqa_log_local.client.OpenQA_Client")
+def test_client_connection_error(MockOpenQA_Client, app_logger):
+    """Test that a connection error is raised if both HTTPS and HTTP fail."""
+    mock_client = MagicMock()
+    mock_client.openqa_request.side_effect = requests.exceptions.ConnectionError(
+        "Connection failed"
+    )
+    MockOpenQA_Client.return_value = mock_client
+
+    client = openQAClientWrapper(hostname="example.com", logger=app_logger)
+    with pytest.raises(openQAClientConnectionError):
+        # Accessing the client property to trigger the connection attempt
+        client.client
