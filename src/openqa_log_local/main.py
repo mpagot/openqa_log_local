@@ -39,7 +39,12 @@ class openQA_log_local:
             self.logger = logging.getLogger(__name__)
         else:
             self.logger = logger
-        self.client = openQAClientWrapper(host, self.logger)
+
+        if "/" in host or "\\" in host or len(host) == 0:
+            raise ValueError(f"Invalid host value: '{host}'")
+
+        self.hostname = host
+        self.client = openQAClientWrapper(self.hostname, self.logger)
         if cache_location is None:
             cl = ".cache"
         else:
@@ -54,7 +59,7 @@ class openQA_log_local:
             tl = time_to_live
         self.cache = openQACache(
             cl,
-            host,
+            self.hostname,  # Pass clean hostname to cache
             ms,
             tl,
             self.logger,

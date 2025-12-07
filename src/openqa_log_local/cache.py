@@ -86,6 +86,10 @@ class openQACache:
                                 0 means data is always refreshed.
             logger (logging.Logger): The logger instance to use.
         """
+        if "/" in hostname or ".." in hostname:
+            raise ValueError(
+                f"Invalid hostname format: {hostname}. Should not contain '/' or '..'"
+            )
         self.cache_path = cache_path
         self.hostname = hostname
         self.cache_host_dir = os.path.join(self.cache_path, self.hostname)
@@ -172,7 +176,7 @@ class openQACache:
             return None
 
     def write_log_list(self, job_id: str, log_files: List[str]) -> None:
-        """Writes the list of log files to a cache file."""
+        """Writes the list of log files to a <job_id>.json file."""
         cache_file = self._file_path(job_id)
         data_to_cache: dict[str, Any] = {}
         if os.path.exists(cache_file):

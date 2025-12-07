@@ -4,10 +4,41 @@ import pytest
 from openqa_log_local.main import openQA_log_local
 
 
-def test_main_initialization(app_logger):
+def test_initialization(app_logger):
     """Test that the openQA_log_local class is initialized"""
-    oll = openQA_log_local(host="WAPR", logger=app_logger)
-    assert oll.client.hostname == "WAPR"
+    oll = openQA_log_local(host="WAPR.gov", logger=app_logger)
+    assert oll.client.hostname == "WAPR.gov"
+
+
+def test_initialization_hostname_parsing(app_logger):
+    """Test that the hostname is correctly parsed from different formats."""
+    hosts_to_test = ["example.com", "aaa.bbb.example.com"]
+    for host in hosts_to_test:
+        with (
+            patch("openqa_log_local.main.openQAClientWrapper"),
+            patch("openqa_log_local.main.openQACache"),
+        ):
+            oll = openQA_log_local(host=host, logger=app_logger)
+            assert oll.hostname == host
+
+
+def test_initialization_hostname_invalid(app_logger):
+    """Test that invalid hostnames raise ValueError."""
+    invalid_hosts = ["http://", "https://", "", "example.com/foo", "../", "a/b"]
+    for host in invalid_hosts:
+        with pytest.raises(ValueError):
+            openQA_log_local(host=host, logger=app_logger)
+
+
+def test_initialization_cache_path(app_logger, tmp_path):
+    """Test that the cache path is correctly constructed."""
+    host = "example.com"
+    cache_dir = tmp_path / ".cache"
+    with patch("openqa_log_local.main.openQAClientWrapper"):
+        oll = openQA_log_local(
+            host=host, cache_location=str(cache_dir), logger=app_logger
+        )
+        assert oll.cache.cache_host_dir == str(cache_dir / host)
 
 
 @pytest.fixture
