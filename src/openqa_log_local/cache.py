@@ -98,7 +98,6 @@ class openQACache:
         self.logger = logger
 
         os.makedirs(self.cache_path, exist_ok=True)
-        # os.makedirs(self.cache_host_dir, exist_ok=True)
 
     def _file_path(self, job_id: str) -> str:
         """Constructs the full path for a job's details metadata JSON file.
@@ -161,7 +160,14 @@ class openQACache:
             self.logger.error(f"Failed to write cache for job {job_id}: {e}")
 
     def get_log_list(self, job_id: str) -> Optional[List[str]]:
-        """Retrieves cached log list for a specific job ID."""
+        """Retrieves the cached list of log files for a specific job ID.
+
+        Args:
+            job_id (str): The ID of the job.
+
+        Returns:
+            Optional[List[str]]: A list of log file names, or None if not found in cache.
+        """
         if self.time_to_leave == 0:
             return None
         cache_file = self._file_path(job_id)
@@ -176,7 +182,15 @@ class openQACache:
             return None
 
     def write_log_list(self, job_id: str, log_files: List[str]) -> None:
-        """Writes the list of log files to a <job_id>.json file."""
+        """Writes the list of log files for a job to the cache file.
+
+        This method updates the JSON cache file for a given job ID with the
+        provided list of log files.
+
+        Args:
+            job_id (str): The ID of the job.
+            log_files (List[str]): A list of log file names to cache.
+        """
         cache_file = self._file_path(job_id)
         data_to_cache: dict[str, Any] = {}
         if os.path.exists(cache_file):
@@ -194,3 +208,39 @@ class openQACache:
             self.logger.info(f"Successfully cached log list for job {job_id}.")
         except (IOError, TypeError) as e:
             self.logger.error(f"Failed to write log list for job {job_id}: {e}")
+
+    def get_cached_log_filepath(
+        self, job_id: str, log_file: str, check_existence: bool = True
+    ) -> str:
+        """
+        Retrieves the full filesystem path for a specific cached log file.
+
+        By default, it also checks if the file exists. Can be used both to
+        check if a file if already cached or to get the path where to cache a new file.
+
+        Args:
+            job_id (str): The ID of the job.
+            log_file (str): The name of the log file.
+            check_existence (bool): If True, checks for the file's existence.
+
+        Returns:
+            str: The full path to the log file, or None if not found.
+                        Cannot use "str | None" as it fails in Python 3.9 as
+                        "X | Y syntax for unions requires Python 3.10"
+        """
+        if not log_file:
+            self.logger.warning(
+                "Missing or empty log_file:'%s' argument",
+                log_file,
+            )
+            return ""
+        file_list = self.get_log_list(job_id)
+        if not file_list or len(file_list) == 0 or log_file not in file_list:
+            self.logger.warning("No log_file:'%s' in file:list:%s", log_file, file_list)
+            return ""
+        job_dir = os.path.join(self.cache_host_dir, job_id)
+        full_path = os.path.join(job_dir, log_file)
+        if check_existence and not os.path.exists(full_path):
+            return ""
+        os.makedirs(job_dir, exist_ok=True)
+        return full_path

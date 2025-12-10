@@ -86,6 +86,15 @@ def get_log_filename(ctx, job_id, filename):
     """
     oll = openQA_log_local(host=ctx.obj["HOST"])
     log_filename = oll.get_log_filename(str(job_id), filename)
+    if log_filename is None:
+        click.echo(
+            f"Error: Log file '{filename}' not found for job {job_id}.", err=True
+        )
+        click.echo(
+            "Hint: Use the 'get-log-list' command to see available log files.",
+            err=True,
+        )
+        ctx.exit(1)
     click.echo(log_filename)
 
 

@@ -2,13 +2,16 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-from .client import openQAClientWrapper
+from .client import openQAClientWrapper, openQAClientLogDownloadError
 from .cache import openQACache
 
 
 class openQA_log_local:
     """
     Main class for the openqa_log_local library.
+
+    This class provides the main interface for interacting with the library.
+    It orchestrates the client and cache to provide a seamless experience.
     """
 
     def __init__(
@@ -20,7 +23,7 @@ class openQA_log_local:
         logger: Optional[logging.Logger] = None,
     ):
         """
-        Initializes the openQA_log_local library.
+            Initializes the openQA_log_local library.
 
         Args:
             host (str): The openQA host URL.
@@ -107,7 +110,7 @@ class openQA_log_local:
             List[str]: A list of log file names.
         """
         data: Optional[List[str]] = None
-        data = self.cache.get_log_list(str(job_id))
+        data = self.cache.get_log_list(job_id)
 
         if not data:
             self.logger.info("Cache miss for job %s log list.", job_id)
@@ -123,7 +126,6 @@ class openQA_log_local:
         if name_pattern:
             regex = re.compile(name_pattern)
             data = [item for item in data if regex.match(item)]
-            self.logger.error(data)
         return data
 
     def get_log_data(self, job_id: str, filename: str) -> str:
@@ -138,19 +140,53 @@ class openQA_log_local:
 
         Returns:
             str: The content of the log file.
+
+        Raises:
+            NotImplementedError: This function is not yet implemented.
         """
         return ""
 
-    def get_log_filename(self, job_id: str, filename: str) -> str:
+    def get_log_filename(self, job_id: str, filename: str) -> Optional[str]:
         """Get absolute path with filename of a single log file from the cache.
 
         The file is downloaded to the cache if not already available locally.
+        It first checks if the file exists before attempting to download.
 
         Args:
             job_id (str): The job ID.
             filename (str): The name of the log file.
 
         Returns:
-            str: The absolute path to the cached log file.
+            Optional[str]: The absolute path to the cached log file, or None if not found.
         """
-        return ""
+        # Check if the log file exists before attempting to download
+        if not self.get_log_list(job_id, name_pattern=f"^{re.escape(filename)}$"):
+            self.logger.warning(
+                "Log file '%s' not found in the list of available logs for job %s.",
+                filename,
+                job_id,
+            )
+            return None
+
+        # Proceed with checking cache and downloading if necessary
+        cached_path = self.cache.get_cached_log_filepath(job_id, filename)
+        if cached_path:
+            return cached_path
+
+        # If not in cache, download it
+        self.logger.info("Log file '%s' not in cache. Downloading.", filename)
+        destination_path = self.cache.get_cached_log_filepath(job_id, filename, False)
+        if destination_path is None:
+            self.logger.error(
+                "Could not determine destination path for log '%s' in job %s",
+                filename,
+                job_id,
+            )
+            return None
+        try:
+            self.client.download_log_to_file_1(job_id, filename, destination_path)
+        except openQAClientLogDownloadError as e:
+            self.logger.error(e)
+            return None
+        cached_path = self.cache.get_cached_log_filepath(job_id, filename)
+        return cached_path
