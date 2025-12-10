@@ -1,7 +1,9 @@
 from unittest.mock import MagicMock, patch
 import pytest
+import re
 
 from openqa_log_local.main import openQA_log_local
+from openqa_log_local.client import openQAClientLogDownloadError
 
 
 def test_initialization(app_logger):
@@ -99,7 +101,7 @@ def test_get_log_list_cache_miss_but_file_exists(oll):
     oll.cache.write_log_list.assert_called_once_with(str(job_id), expected_list)
 
 
-def test_get_log_list_cache_with_pattern(oll):
+def test_get_log_list_with_pattern(oll):
     """Test get_log_list with a name pattern for filtering."""
     job_id = "123"
     full_list = ["test.log", "another.txt", "test.txt"]
@@ -115,8 +117,91 @@ def test_get_log_list_client_with_pattern(oll):
     job_id = "123"
     full_list = ["test.log", "another.txt", "test.txt"]
     oll.cache.get_log_list.return_value = None
-    oll.cache.get_log_list.return_value = full_list
+    oll.client.get_log_list.return_value = full_list
 
     log_list = oll.get_log_list(job_id, name_pattern=r"test\..*")
 
     assert log_list == ["test.log", "test.txt"]
+
+
+def test_get_log_filename_log_not_in_list(oll):
+    """Test get_log_filename returns None when the file is not in the log list."""
+    job_id = "123"
+    filename = "secret.log"
+    oll.get_log_list = MagicMock(return_value=[])
+
+    result = oll.get_log_filename(job_id, filename)
+
+    assert result is None
+    oll.get_log_list.assert_called_once_with(
+        job_id, name_pattern=f"^{re.escape(filename)}$"
+    )
+
+
+def test_get_log_filename_cached(oll):
+    """Test get_log_filename returns path for a cached log."""
+    job_id = "123"
+    filename = "autoinst-log.txt"
+    expected_path = f"/tmp/cache/{job_id}/{filename}"
+
+    oll.get_log_list = MagicMock(return_value=[filename])
+    oll.cache.get_cached_log_filepath.return_value = expected_path
+
+    result = oll.get_log_filename(job_id, filename)
+
+    assert result == expected_path
+    oll.cache.get_cached_log_filepath.assert_called_once_with(job_id, filename)
+    oll.client.download_log_to_file_1.assert_not_called()
+
+
+def test_get_log_filename_not_cached(oll):
+    """Test get_log_filename downloads and returns path for an uncached log."""
+    job_id = "123"
+    filename = "autoinst-log.txt"
+    final_path = f"/tmp/cache/{job_id}/{filename}"
+
+    # First call to get_cached_log_filepath with check_existence=True returns None (not cached)
+    # Second call with check_existence=False returns the destination path for download
+    # Third call with check_existence=True returns the final path
+    oll.cache.get_cached_log_filepath.side_effect = [None, final_path, final_path]
+    oll.get_log_list = MagicMock(return_value=[filename])
+
+    result = oll.get_log_filename(job_id, filename)
+
+    assert result == final_path
+    assert oll.cache.get_cached_log_filepath.call_count == 3
+    oll.client.download_log_to_file_1.assert_called_once()
+
+
+def test_get_log_filename_download_fails(oll):
+    """Test get_log_filename returns None when download fails."""
+    job_id = "123"
+    filename = "autoinst-log.txt"
+    dest_path = f"/tmp/cache/{job_id}/{filename}"
+
+    oll.cache.get_cached_log_filepath.side_effect = [None, dest_path, None]
+    oll.cache.get_log_list.return_value = [filename]
+    oll.client.download_log_to_file_1.side_effect = [
+        openQAClientLogDownloadError("Download failed")
+    ]
+
+    result = oll.get_log_filename(job_id, filename)
+
+    assert result is None
+    oll.client.download_log_to_file_1.assert_called_once()
+
+
+def test_get_log_filename_get_cached_path_fails(oll):
+    """Test get_log_filename returns None when get_cached_log_filepath fails after download."""
+    job_id = "123"
+    filename = "autoinst-log.txt"
+    dest_path = f"/tmp/cache/{job_id}/{filename}"
+
+    # get_cached_log_filepath returns None even after download
+    oll.cache.get_cached_log_filepath.side_effect = [None, dest_path, None]
+    oll.get_log_list = MagicMock(return_value=[filename])
+
+    result = oll.get_log_filename(job_id, filename)
+
+    assert result is None
+    assert oll.client.download_log_to_file_1.call_count == 1

@@ -29,8 +29,18 @@ class openQAClientConnectionError(openQAClientError):
     pass
 
 
+class openQAClientLogDownloadError(openQAClientError):
+    """Raised for error during log file downloads"""
+
+    pass
+
+
 class openQAClientWrapper:
-    """A wrapper class for the openqa_client to simplify interactions."""
+    """A wrapper class for the openqa_client to simplify interactions.
+
+    This class handles the connection to the openQA server and provides
+    methods to interact with the API in a simplified way.
+    """
 
     def __init__(
         self,
@@ -39,12 +49,15 @@ class openQAClientWrapper:
     ) -> None:
         """Initializes the client wrapper.
 
-        It does not create an OpenQA_Client instance immediately. The client
-        is lazily initialized on first use.
+            It does not create an OpenQA_Client instance immediately. The client
+            is lazily initialized on first use.
 
-        Args:
-            hostname (str): The openQA host, without scheme.
-            logger (logging.Logger): The logger instance to use.
+            Args:
+                hostname (str): The openQA host, without scheme.
+                logger (logging.Logger): The logger instance to use.
+
+        Raises:
+            ValueError: If the hostname contains '://'.
         """
         if "://" in hostname:
             raise ValueError(
@@ -68,6 +81,8 @@ class openQAClientWrapper:
         It tries to connect using https first, and fall back to http if it fails.
         Returns:
             OpenQA_Client: The initialized openqa_client instance.
+        Raises:
+            openQAClientConnectionError: If both HTTPS and HTTP connections fail.
         """
         if self._client:
             return self._client
@@ -181,3 +196,64 @@ class openQAClientWrapper:
         ret = [item.strip() for item in matches if item.strip()]
 
         return ret
+
+    def download_log_to_file(
+        self, job_id: str, filename: str, destination_path: str
+    ) -> None:
+        """Downloads a log file and streams it directly to a file.
+
+        Args:
+            job_id (str): The ID of the job.
+            filename (str): The name of the log file to download.
+            destination_path (str): The local path to save the file to.
+
+        Raises:
+            openQAClientLogDownloadError: If the download fails.
+        """
+        # This method is not based on client but only on request,
+        # run a dummy call to client
+        # to have schema properly populated
+        self.client.openqa_request("GET", "jobs", params={"limit": 1})
+        log_file_url = f"{self.scheme}://{self.hostname}/tests/{job_id}/file/{filename}"
+        try:
+            with self.client.session.get(log_file_url, stream=True, timeout=30) as r:
+                r.raise_for_status()
+                with open(destination_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+        except requests.exceptions.RequestException as e:
+            error_message = f"Failed to download log '{filename}' for job {job_id}: {e}"
+            self.logger.error(error_message)
+            raise openQAClientLogDownloadError(error_message) from e
+
+    def download_log_to_file_1(
+        self, job_id: str, filename: str, destination_path: str
+    ) -> None:
+        """Downloads a log file using the openQA API endpoint.
+
+        This method uses the `do_request` method from the underlying client
+        to download the file.
+
+        Args:
+            job_id (str): The ID of the job.
+            filename (str): The name of the log file to download.
+            destination_path (str): The local path to save the file to.
+
+        Raises:
+            openQAClientLogDownloadError: If the download fails, including for 404 errors.
+        """
+        # Use the API endpoint
+        log_file_url = f"tests/{job_id}/file/{filename}"
+        try:
+            # Use do_request with parse=False to get raw response
+            response = self.client.do_request(
+                requests.Request("GET", f"{self.client.baseurl}/{log_file_url}"),
+                parse=False,
+            )
+            with open(destination_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        except requests.exceptions.RequestException as e:
+            error_message = f"Failed to download log '{filename}' for job {job_id}: {e}"
+            self.logger.error(error_message)
+            raise openQAClientLogDownloadError(error_message) from e
