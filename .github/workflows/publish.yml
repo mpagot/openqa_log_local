@@ -57,8 +57,41 @@ jobs:
             echo "The new version $NEW_VERSION is greater than the latest version $LATEST_VERSION on PyPI."
           fi
 
+  validate_versions:
+    needs: details
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+      - name: Install project
+        run: |
+          uv pip install .
+      - name: Check version consistency
+        run: |
+          TAG_VERSION=${{ needs.details.outputs.new_version }}
+          echo "Tag version: $TAG_VERSION"
+
+          CLI_VERSION=$(openqa-log-local --version | sed -E 's/.* version (.+)/\1/')
+          echo "CLI version: $CLI_VERSION"
+
+          PYPROJECT_VERSION=$(grep -E '^version = ".*"' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          echo "pyproject.toml version: $PYPROJECT_VERSION"
+
+          if [ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match pyproject.toml version ($PYPROJECT_VERSION)."
+            exit 1
+          fi
+
+          if [ "$TAG_VERSION" != "$CLI_VERSION" ]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match CLI version ($CLI_VERSION)."
+            exit 1
+          fi
+
+          echo "All versions are consistent."
+
   build:
-    needs: [details, check_pypi]
+    needs: [details, check_pypi, validate_versions]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
