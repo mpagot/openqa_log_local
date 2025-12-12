@@ -102,6 +102,13 @@ To filter log files by name pattern:
 openqa-log-local get-log-list --host openqa.opensuse.org --job-id 1234 --name-pattern ".*txt"
 ```
 
+To filter log files by name pattern:
+
+```bash
+openqa-log-local get-log-list --host openqa.opensuse.org --job-id 1234 --name-pattern ".*txt"
+openqa-log-local get-log-data --host openqa.opensuse.org --job-id 1234 --filename autoinst-log.txt
+```
+
 #### Get Log Filename
 
 ```bash
