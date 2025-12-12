@@ -14,7 +14,7 @@ mypy:
 	uv run mypy --check-untyped-defs src/
 
 test:
-	uv run pytest
+	uv run pytest --cache-clear || uv run pytest --lf -vv -o log_cli=true -o log_cli_level=10
 
 build:
 	uv build
