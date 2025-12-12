@@ -209,7 +209,7 @@ class openQACache:
         except (IOError, TypeError) as e:
             self.logger.error(f"Failed to write log list for job {job_id}: {e}")
 
-    def get_cached_log_filepath(
+    def get_log_filename(
         self, job_id: str, log_file: str, check_existence: bool = True
     ) -> str:
         """

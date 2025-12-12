@@ -23,20 +23,24 @@ class openQA_log_local:
         logger: Optional[logging.Logger] = None,
     ):
         """
-            Initializes the openQA_log_local library.
+        Initializes the openQA_log_local library.
 
         Args:
             host (str): The openQA host URL.
             cache_location (Optional[str]): The directory to store cached logs.
                                         Defaults to ".cache".
             max_size (Optional[int]): The maximum size of the cache in bytes.
-                                  Defaults to 100MB.
+                                  Cannot be negative. Defaults to 100MB.
             time_to_live (Optional[int]): The time in seconds after which cached
                                         data is considered stale. -1 means
                                         data never expires, 0 means data is
-                                        always refreshed. Defaults to -1.
+                                        always refreshed. Cannot be smaller
+                                        than -1. Defaults to -1.
             logger (Optional[logging.Logger]): A logger instance. If None, a
                                              new one is created.
+
+        Raises:
+            ValueError: If any of the arguments have invalid values.
         """
         if logger is None:
             self.logger = logging.getLogger(__name__)
@@ -46,20 +50,23 @@ class openQA_log_local:
         if "/" in host or "\\" in host or len(host) == 0:
             raise ValueError(f"Invalid host value: '{host}'")
 
+        cl = (
+            cache_location
+            if cache_location is not None and len(cache_location) > 0
+            else ".cache"
+        )
+
+        ms = max_size if max_size is not None else 1024 * 1024 * 100
+        if ms < 0:
+            raise ValueError("max_size cannot be negative")
+
+        tl = time_to_live if time_to_live is not None else -1
+        if tl < -1:
+            raise ValueError("time_to_live cannot be smaller than -1")
+
         self.hostname = host
         self.client = openQAClientWrapper(self.hostname, self.logger)
-        if cache_location is None:
-            cl = ".cache"
-        else:
-            cl = cache_location
-        if max_size is None:
-            ms = 1024 * 1024 * 100
-        else:
-            ms = max_size
-        if time_to_live is None:
-            tl = -1
-        else:
-            tl = time_to_live
+
         self.cache = openQACache(
             cl,
             self.hostname,  # Pass clean hostname to cache
@@ -83,15 +90,18 @@ class openQA_log_local:
         data: Optional[Dict[str, Any]] = None
         data = self.cache.get_job_details(job_id)
         if data:
-            self.logger.info("Cache hit for job %s details.", job_id)
+            self.logger.info("Cache hit for job %s details", job_id)
             return data
-        self.logger.info("Cache miss for job %s details.", job_id)
+        self.logger.info("Cache miss for job %s details", job_id)
         data = self.client.get_job_details(job_id)
-        if not data:
-            self.logger.info(
-                "Cache miss and data missing on openQA too for job %s details", job_id
+        if not data or data.get("state", "UNKNOWN") != "done":
+            self.logger.error(
+                "Data missing or invalid (job has not to be running) on openQA %s too for job %s details",
+                self.hostname,
+                job_id,
             )
             return None
+        self.logger.info("Write details to cache")
         self.cache.write_details(job_id, data)
         return data
 
@@ -107,26 +117,36 @@ class openQA_log_local:
             name_pattern (Optional[str]): A regex pattern to filter log files by name.
 
         Returns:
-            List[str]: A list of log file names.
+            List[str]: A list of log file names. List can be empty.
         """
-        data: Optional[List[str]] = None
-        data = self.cache.get_log_list(job_id)
-
-        if not data:
+        log_list: Optional[List[str]] = self.cache.get_log_list(job_id)
+        if not log_list:
             self.logger.info("Cache miss for job %s log list.", job_id)
-            data = self.client.get_log_list(job_id)
-            if not data:
+            # As we are going to fetch the list from the server,
+            # first check if cache already knows anything (details)
+            # about the job_id. Doing that via main.py get_details
+            # ensure that both cache and openQA sever are inspected;
+            # this can have details to be saved in cache as side effect.
+            details = self.get_details(job_id)
+            if details is None:
+                return []
+            # Now that we know that there's a job with job_id,
+            # and it is in the right state...
+            log_list = self.client.get_log_list(job_id)
+            if not log_list:
                 self.logger.info(
-                    "Cache miss and data missing on openQA too for job %s log list.",
+                    "Cache miss and data missing on openQA too for job %s log list",
                     job_id,
                 )
                 return []
-            self.cache.write_log_list(job_id, data)
-
+            # we can save the log_list in cache as we already know,
+            # by the previous get_details call, that
+            # list is about a valid job in proper state "done"
+            self.cache.write_log_list(job_id, log_list)
         if name_pattern:
             regex = re.compile(name_pattern)
-            data = [item for item in data if regex.match(item)]
-        return data
+            log_list = [item for item in log_list if regex.match(item)]
+        return log_list
 
     def get_log_data(self, job_id: str, filename: str) -> str:
         """Get content of a single log file.
@@ -169,13 +189,24 @@ class openQA_log_local:
             return None
 
         # Proceed with checking cache and downloading if necessary
-        cached_path = self.cache.get_cached_log_filepath(job_id, filename)
+        cached_path = self.cache.get_log_filename(job_id, filename)
         if cached_path:
             return cached_path
 
         # If not in cache, download it
         self.logger.info("Log file '%s' not in cache. Downloading.", filename)
-        destination_path = self.cache.get_cached_log_filepath(job_id, filename, False)
+        details = self.get_details(job_id)
+        if not details or details.get("state") != "done":
+            self.logger.warning(
+                "Job %s is not in 'done' state. Log file '%s' will not be downloaded. details:%s",
+                job_id,
+                filename,
+                details,
+            )
+            return None
+
+        # False means "gimme the path even if the file does not exist in the cache folder yet"
+        destination_path = self.cache.get_log_filename(job_id, filename, False)
         if destination_path is None:
             self.logger.error(
                 "Could not determine destination path for log '%s' in job %s",
@@ -188,5 +219,4 @@ class openQA_log_local:
         except openQAClientLogDownloadError as e:
             self.logger.error(e)
             return None
-        cached_path = self.cache.get_cached_log_filepath(job_id, filename)
-        return cached_path
+        return self.cache.get_log_filename(job_id, filename)
