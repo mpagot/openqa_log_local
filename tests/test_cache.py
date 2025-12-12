@@ -168,8 +168,8 @@ def test_write_details_write_log_list_independent(cache):
     assert cache.instance.get_log_list(job_id) == new_log_list
 
 
-def test_get_cached_log_filepath_success(cache):
-    """Test get_cached_log_filepath returns the correct path for a cached log,
+def test_get_log_filename_success(cache):
+    """Test get_log_filename returns the correct path for a cached log,
     for a file that exist in cache."""
     job_id = "1"
     log_file = "autoinst-log.txt"
@@ -181,25 +181,25 @@ def test_get_cached_log_filepath_success(cache):
     (job_dir / log_file).touch()
     expected_path = str(job_dir / log_file)
 
-    assert cache.instance.get_cached_log_filepath(job_id, log_file) == expected_path
+    assert cache.instance.get_log_filename(job_id, log_file) == expected_path
 
 
 def test_get_cached_log_filepath_no_log_list(cache):
-    """Test get_cached_log_filepath returns None when no log list is cached."""
-    assert cache.instance.get_cached_log_filepath("1", "autoinst-log.txt") is ""
+    """Test get_log_filename returns None when no log list is cached."""
+    assert cache.instance.get_log_filename("1", "autoinst-log.txt") == ""
 
 
-def test_get_cached_log_filepath_log_not_in_list(cache):
-    """Test get_cached_log_filepath returns None when the log is not in the cached list."""
+def test_get_log_filename_log_not_in_list(cache):
+    """Test get_log_filename returns None when the log is not in the cached list."""
     job_id = "1"
     log_list = ["other-log.txt"]
     cache.instance.write_log_list(job_id, log_list)
 
-    assert cache.instance.get_cached_log_filepath(job_id, "autoinst-log.txt") is ""
+    assert cache.instance.get_log_filename(job_id, "autoinst-log.txt") == ""
 
 
-def test_get_cached_log_filepath_file_not_exists(cache):
-    """Test get_cached_log_filepath returns None when
+def test_get_log_filename_file_not_exists(cache):
+    """Test get_log_filename returns None when
     log file is in the list, but not on disk."""
     job_id = "1"
     log_file = "autoinst-log.txt"
@@ -207,11 +207,12 @@ def test_get_cached_log_filepath_file_not_exists(cache):
     cache.instance.write_log_list(job_id, log_list)
 
     # Log file is in the list, but not on disk
-    assert cache.instance.get_cached_log_filepath(job_id, log_file) is ""
+    assert cache.instance.get_log_filename(job_id, log_file) == ""
 
 
 def test_get_cached_log_filepath_file_not_exists_no_check(cache):
-    """Test get_cached_log_filepath returns path when file doesn't exist and check_existence is False."""
+    """Test get_log_filename returns path
+    when file doesn't exist and check_existence is False."""
     job_id = "1"
     log_file = "autoinst-log.txt"
     log_list = [log_file]
@@ -221,11 +222,11 @@ def test_get_cached_log_filepath_file_not_exists_no_check(cache):
 
     # Log file is in list, not on disk, but we don't check
     assert (
-        cache.instance.get_cached_log_filepath(job_id, log_file, check_existence=False)
+        cache.instance.get_log_filename(job_id, log_file, check_existence=False)
         == expected_path
     )
 
 
 def test_get_cached_log_filepath_empty_log_file_arg(cache):
-    """Test get_cached_log_filepath returns None for an empty log_file argument."""
-    assert cache.instance.get_cached_log_filepath("1", "") is ""
+    """Test get_log_filename returns None for an empty log_file argument."""
+    assert cache.instance.get_log_filename("1", "") == ""
