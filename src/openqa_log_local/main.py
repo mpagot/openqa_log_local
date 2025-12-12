@@ -148,24 +148,6 @@ class openQA_log_local:
             log_list = [item for item in log_list if regex.match(item)]
         return log_list
 
-    def get_log_data(self, job_id: str, filename: str) -> str:
-        """Get content of a single log file.
-
-        The file is downloaded to the cache if not already available locally.
-        All the log file content is returned.
-
-        Args:
-            job_id (str): The job ID.
-            filename (str): The name of the log file.
-
-        Returns:
-            str: The content of the log file.
-
-        Raises:
-            NotImplementedError: This function is not yet implemented.
-        """
-        return ""
-
     def get_log_filename(self, job_id: str, filename: str) -> Optional[str]:
         """Get absolute path with filename of a single log file from the cache.
 
