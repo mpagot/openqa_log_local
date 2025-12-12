@@ -64,30 +64,26 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up uv
         uses: astral-sh/setup-uv@v3
-      - name: Install project
-        run: |
-          uv pip install .
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Install dependencies
+        run: uv sync --dev
       - name: Check version consistency
         run: |
           TAG_VERSION=${{ needs.details.outputs.new_version }}
           echo "Tag version: $TAG_VERSION"
-
-          CLI_VERSION=$(openqa-log-local --version | sed -E 's/.* version (.+)/\1/')
+          CLI_VERSION=$(uv run openqa-log-local --version | sed -E 's/.* version (.+)/\1/')
           echo "CLI version: $CLI_VERSION"
-
           PYPROJECT_VERSION=$(grep -E '^version = ".*"' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
           echo "pyproject.toml version: $PYPROJECT_VERSION"
-
           if [ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]; then
             echo "Error: Tag version ($TAG_VERSION) does not match pyproject.toml version ($PYPROJECT_VERSION)."
             exit 1
           fi
-
           if [ "$TAG_VERSION" != "$CLI_VERSION" ]; then
             echo "Error: Tag version ($TAG_VERSION) does not match CLI version ($CLI_VERSION)."
             exit 1
           fi
-
           echo "All versions are consistent."
 
   build:
