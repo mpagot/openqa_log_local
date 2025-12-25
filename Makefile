@@ -18,3 +18,6 @@ test:
 
 build:
 	uv build
+
+doc:
+	uv run pdoc --docformat google src/openqa_log_local

@@ -2,6 +2,8 @@
 openqa_log_local
 
 A library and CLI for locally caching and inspecting openQA job logs.
+
+.. include:: ../../README.md
 """
 
 from .cli import cli
