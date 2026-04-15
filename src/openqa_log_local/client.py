@@ -52,16 +52,17 @@ class openQAClientWrapper:
         It does not create an OpenQA_Client instance immediately. The client
         is lazily initialized on first use.
 
-        Args:
-            hostname (str): The openQA host, without scheme.
-            logger (logging.Logger): The logger instance to use.
+            Args:
+                hostname (str): The openQA hostname, without scheme (e.g. 'openqa.opensuse.org').
+                logger (logging.Logger): The logger instance to use.
 
         Raises:
             ValueError: If the hostname contains '://'.
         """
         if "://" in hostname:
             raise ValueError(
-                f"Invalid hostname format: {hostname}. Should not contain '://'"
+                f"Invalid hostname format: '{hostname}'. Should not contain '://', "
+                "pass hostname only (e.g. 'openqa.opensuse.org')."
             )
         self.logger = logger
         self.hostname = hostname

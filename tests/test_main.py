@@ -29,7 +29,11 @@ def test_initialization_hostname_parsing(app_logger):
 def test_initialization_hostname_invalid(app_logger):
     """Test that invalid hostnames raise ValueError."""
     for host in ["http://", "https://", "", "example.com/foo", "../", "a/b"]:
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid host value: '.*'\. Host should be a hostname without scheme "
+            r"\(e\.g\. 'openqa\.opensuse\.org' instead of 'https://openqa\.opensuse\.org'\)\.",
+        ):
             openQA_log_local(host=host, logger=app_logger)
 
 
