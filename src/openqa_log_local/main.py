@@ -26,7 +26,7 @@ class openQA_log_local:
         Initializes the openQA_log_local library.
 
         Args:
-            host (str): The openQA host URL.
+            host (str): The openQA hostname, without scheme (e.g. 'openqa.opensuse.org').
             cache_location (Optional[str]): The directory to store cached logs.
                                         Defaults to ".cache".
             max_size (Optional[int]): The maximum size of the cache in bytes.
@@ -48,7 +48,10 @@ class openQA_log_local:
             self.logger = logger
 
         if "/" in host or "\\" in host or len(host) == 0:
-            raise ValueError(f"Invalid host value: '{host}'")
+            raise ValueError(
+                f"Invalid host value: '{host}'. Host should be a hostname without scheme "
+                "(e.g. 'openqa.opensuse.org' instead of 'https://openqa.opensuse.org')."
+            )
 
         cl = (
             cache_location
@@ -197,7 +200,7 @@ class openQA_log_local:
             )
             return None
         try:
-            self.client.download_log_to_file_1(job_id, filename, destination_path)
+            self.client.download_log_to_file(job_id, filename, destination_path)
         except openQAClientLogDownloadError as e:
             self.logger.error(e)
             return None

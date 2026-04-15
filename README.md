@@ -32,7 +32,7 @@ To use the library in your Python project, you first need to import the `openQA_
 from openqa_log_local import openQA_log_local
 ```
 
-Then, you can create an instance of the class, providing the openQA host URL:
+Then, you can create an instance of the class, providing the openQA hostname (without `http://` or `https://` prefix):
 
 ```python
 oll = openQA_log_local(host='openqa.opensuse.org')

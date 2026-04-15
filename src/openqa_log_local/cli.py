@@ -8,7 +8,9 @@ from importlib.metadata import version
 @click.group()
 @click.version_option(version=version("openqa-log-local"))
 @click.option(
-    "--host", required=True, help="The openQA host URL (e.g., openqa.example.com)."
+    "--host",
+    required=True,
+    help="The openQA hostname, without scheme (e.g. openqa.example.com).",
 )
 @click.option(
     "--log-level",
