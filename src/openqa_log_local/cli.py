@@ -64,21 +64,6 @@ def get_log_list(ctx, job_id, name_pattern):
 @click.option("--job-id", required=True, type=int, help="The job ID.")
 @click.option("--filename", required=True, help="The name of the log file.")
 @click.pass_context
-def get_log_data(ctx, job_id, filename):
-    """Get content of a single log file.
-
-    The file is downloaded to the cache if not already available locally.
-    All the log file content is returned.
-    """
-    oll = openQA_log_local(host=ctx.obj["HOST"])
-    log_data = oll.get_log_data(str(job_id), filename)
-    click.echo(log_data)
-
-
-@cli.command()
-@click.option("--job-id", required=True, type=int, help="The job ID.")
-@click.option("--filename", required=True, help="The name of the log file.")
-@click.pass_context
 def get_log_filename(ctx, job_id, filename):
     """Get absolute path with filename of a single log file from the cache.
 

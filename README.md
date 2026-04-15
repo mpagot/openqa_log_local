@@ -35,7 +35,7 @@ from openqa_log_local import openQA_log_local
 Then, you can create an instance of the class, providing the openQA host URL:
 
 ```python
-oll = openQA_log_local(host='http://openqa.opensuse.org')
+oll = openQA_log_local(host='openqa.opensuse.org')
 
 # Get job details
 log_details = oll.get_details(job_id=1234)
@@ -44,11 +44,6 @@ log_details = oll.get_details(job_id=1234)
 # No download any log file yet.
 log_list = oll.get_log_list(job_id=1234)
 log_txt_list = oll.get_log_list(job_id=4567, name_pattern=r".*\\.txt")
-
-# Get content of a single log file. The file is downloaded to the cache
-# if not already available locally.
-# All the log file content is returned in `log_data`
-log_data = oll.get_log_data(job_id=1234, filename=log_list[3])
 
 # Get absolute path with filename of a single log file from the cache.
 # The file is downloaded to the cache if not already available locally.
@@ -59,7 +54,7 @@ Cache can be configured:
 
 ```python
 oll = openQA_log_local(
-    host='http://openqa.opensuse.org',
+    host='openqa.opensuse.org',
     cache_location='/home/user/.openqa_cache',
     max_size=100000,
     time_to_live=3600)
@@ -68,7 +63,7 @@ oll = openQA_log_local(
 ... but also ignored and always refreshed :
 
 ```python
-oll = openQA_log_local(host='http://openqa.opensuse.org', time_to_live=0)
+oll = openQA_log_local(host='openqa.opensuse.org', time_to_live=0)
 ```
 
 
@@ -78,7 +73,7 @@ The package also provides a command-line interface (CLI) for interacting with op
 
 To see INFO and DEBUG messages, you can use the `--log-level` option:
 ```bash
-uv run openqa-log-local --log-level INFO get-log-list --host http://openqaworker15.qa.suse.cz --job-id 353681
+uv run openqa-log-local --log-level INFO get-log-list --host openqa.opensuse.org --job-id 1234
 ```
 
 This will show messages indicating whether there was a cache hit or miss.
@@ -86,31 +81,31 @@ This will show messages indicating whether there was a cache hit or miss.
 #### Get Job Details
 
 ```bash
-openqa-log-local get-details --host http://openqa.opensuse.org --job-id 1234
+openqa-log-local get-details --host openqa.opensuse.org --job-id 1234
 ```
 
 Run via `uv` if you have used `uv` to install it
 
 ```bash
-uv run openqa-log-local get-details --host http://openqa.opensuse.org --job-id 1234
+uv run openqa-log-local get-details --host openqa.opensuse.org --job-id 1234
 ```
 
 #### Get Log List
 
 ```bash
-openqa-log-local get-log-list --host http://openqa.opensuse.org --job-id 1234
+openqa-log-local get-log-list --host openqa.opensuse.org --job-id 1234
 ```
 
-#### Get Log Data
+To filter log files by name pattern:
 
 ```bash
-openqa-log-local get-log-data --host http://openqa.opensuse.org --job-id 1234 --filename autoinst-log.txt
+openqa-log-local get-log-list --host openqa.opensuse.org --job-id 1234 --name-pattern ".*txt"
 ```
 
 #### Get Log Filename
 
 ```bash
-openqa-log-local get-log-filename --host http://openqa.opensuse.org --job-id 1234 --filename autoinst-log.txt
+openqa-log-local get-log-filename --host openqa.opensuse.org --job-id 1234 --filename autoinst-log.txt
 ```
 
 
