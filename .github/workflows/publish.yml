@@ -15,7 +15,7 @@ jobs:
       new_version: ${{ steps.release.outputs.new_version }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Extract tag and Details
         id: release
         run: |
@@ -61,9 +61,9 @@ jobs:
     needs: details
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v7
       - name: Set up Python
         run: uv python install 3.11
       - name: Install dependencies
@@ -90,14 +90,14 @@ jobs:
     needs: [details, check_pypi, validate_versions]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v7
       - name: Build source and wheel distribution
         run: |
           uv build
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -112,10 +112,9 @@ jobs:
       # In order to use Trusted Publisher
       id-token: write
       contents: read
-
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -130,25 +129,23 @@ jobs:
       contents: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Download artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
 
       - name: Create GitHub Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+        uses: softprops/action-gh-release@v2 # Modern replacement action
         with:
           tag_name: ${{ needs.details.outputs.tag_name }}
-          release_name: ${{ needs.details.outputs.tag_name }}
+          name: ${{ needs.details.outputs.tag_name }}
           body: "Release of version ${{ needs.details.outputs.new_version }}"
           draft: false
           prerelease: false
-
+          files: dist/* # Attach built distribution files to the release
