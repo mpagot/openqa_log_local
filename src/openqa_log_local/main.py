@@ -112,6 +112,10 @@ class openQA_log_local:
 
         This method does not download any log files.
 
+        Side effects:
+            On cache miss, job details are fetched and cached as part of
+            validating the job before retrieving the log list.
+
         Args:
             job_id (str): The job ID.
             name_pattern (Optional[str]): A regex pattern to filter log files by name.
@@ -153,6 +157,10 @@ class openQA_log_local:
 
         The file is downloaded to the cache if not already available locally.
         It first checks if the file exists before attempting to download.
+
+        Side effects:
+            On cache miss, job details and the log list are fetched and cached
+            as part of validating the job and the log file name.
 
         Args:
             job_id (str): The job ID.
@@ -197,7 +205,7 @@ class openQA_log_local:
             )
             return None
         try:
-            self.client.download_log_to_file_1(job_id, filename, destination_path)
+            self.client.download_log_to_file(job_id, filename, destination_path)
         except openQAClientLogDownloadError as e:
             self.logger.error(e)
             return None

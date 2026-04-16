@@ -53,6 +53,8 @@ def get_log_list(ctx, job_id, name_pattern):
     """Get a list of log files associated to an openQA job.
 
     This command does not download any log file.
+
+    Side effects: on cache miss, job details are also fetched and cached.
     """
     oll = openQA_log_local(host=ctx.obj["HOST"])
     log_list = oll.get_log_list(str(job_id), name_pattern)
@@ -68,6 +70,8 @@ def get_log_filename(ctx, job_id, filename):
     """Get absolute path with filename of a single log file from the cache.
 
     The file is downloaded to the cache if not already available locally.
+
+    Side effects: on cache miss, job details and the log list are also fetched and cached.
     """
     oll = openQA_log_local(host=ctx.obj["HOST"])
     log_filename = oll.get_log_filename(str(job_id), filename)

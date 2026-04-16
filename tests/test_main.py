@@ -254,7 +254,7 @@ def test_get_log_filename_cached(oll):
 
     assert result == str(expected_path)
     oll_instance.cache.get_log_filename.assert_called_once_with(job_id, filename)
-    oll_instance.client.download_log_to_file_1.assert_not_called()
+    oll_instance.client.download_log_to_file.assert_not_called()
 
 
 def test_get_log_filename_not_cached(oll):
@@ -288,7 +288,7 @@ def test_get_log_filename_not_cached(oll):
 
     assert result == str(final_path)
     assert oll_instance.cache.get_log_filename.call_count == 3
-    oll_instance.client.download_log_to_file_1.assert_called_once()
+    oll_instance.client.download_log_to_file.assert_called_once()
 
 
 def test_get_log_filename_download_fails(oll):
@@ -302,14 +302,14 @@ def test_get_log_filename_download_fails(oll):
     oll_instance.get_log_list = MagicMock(return_value=[filename])
     oll_instance.cache.get_job_details.return_value = None
     oll_instance.client.get_job_details.return_value = {"state": "done"}
-    oll_instance.client.download_log_to_file_1.side_effect = [
+    oll_instance.client.download_log_to_file.side_effect = [
         openQAClientLogDownloadError("Download failed")
     ]
 
     result = oll_instance.get_log_filename(job_id, filename)
 
     assert result is None
-    oll_instance.client.download_log_to_file_1.assert_called_once()
+    oll_instance.client.download_log_to_file.assert_called_once()
 
 
 def test_get_log_filename_get_cached_path_fails(oll):
@@ -329,7 +329,7 @@ def test_get_log_filename_get_cached_path_fails(oll):
     result = oll_instance.get_log_filename(job_id, filename)
 
     assert result is None
-    assert oll_instance.client.download_log_to_file_1.call_count == 1
+    assert oll_instance.client.download_log_to_file.call_count == 1
 
 
 def test_get_log_filename_not_done_state(oll):
@@ -348,4 +348,4 @@ def test_get_log_filename_not_done_state(oll):
 
     assert result is None
     oll_instance.client.get_job_details.assert_called_once_with(job_id)
-    oll_instance.client.download_log_to_file_1.assert_not_called()
+    oll_instance.client.download_log_to_file.assert_not_called()

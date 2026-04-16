@@ -200,35 +200,6 @@ class openQAClientWrapper:
     def download_log_to_file(
         self, job_id: str, filename: str, destination_path: str
     ) -> None:
-        """Downloads a log file and streams it directly to a file.
-
-        Args:
-            job_id (str): The ID of the job.
-            filename (str): The name of the log file to download.
-            destination_path (str): The local path to save the file to.
-
-        Raises:
-            openQAClientLogDownloadError: If the download fails.
-        """
-        # This method is not based on client but only on request,
-        # run a dummy call to client
-        # to have schema properly populated
-        self.client.openqa_request("GET", "jobs", params={"limit": 1})
-        log_file_url = f"{self.scheme}://{self.hostname}/tests/{job_id}/file/{filename}"
-        try:
-            with self.client.session.get(log_file_url, stream=True, timeout=30) as r:
-                r.raise_for_status()
-                with open(destination_path, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-        except requests.exceptions.RequestException as e:
-            error_message = f"Failed to download log '{filename}' for job {job_id}: {e}"
-            self.logger.error(error_message)
-            raise openQAClientLogDownloadError(error_message) from e
-
-    def download_log_to_file_1(
-        self, job_id: str, filename: str, destination_path: str
-    ) -> None:
         """Downloads a log file using the openQA API endpoint.
 
         This method uses the `do_request` method from the underlying client
