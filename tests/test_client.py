@@ -234,43 +234,7 @@ def test_client_connection_error(MockOpenQA_Client, app_logger):
 
 @patch("openqa_log_local.client.openQAClientWrapper.client", new_callable=PropertyMock)
 def test_download_log_to_file_success(mock_client_property, app_logger):
-    """Test successful download of a log file."""
-    wrapper = openQAClientWrapper("WOPR", app_logger)
-    wrapper.scheme = "http"
-    job_id = "123"
-    filename = "test.log"
-    dest_path = "/tmp/test.log"
-    mock_response = MagicMock()
-    mock_response.iter_content.return_value = [b"log content"]
-    mock_get = MagicMock()
-    mock_get.return_value.__enter__.return_value = mock_response
-    mock_client_property.return_value.session.get = mock_get
-
-    with patch("builtins.open", mock_open()) as mocked_file:
-        wrapper.download_log_to_file(job_id, filename, dest_path)
-        mocked_file.assert_called_once_with(dest_path, "wb")
-        mocked_file().write.assert_called_once_with(b"log content")
-
-
-@patch("openqa_log_local.client.openQAClientWrapper.client", new_callable=PropertyMock)
-def test_download_log_to_file_request_exception(mock_client_property, app_logger):
-    """Test download_log_to_file for a request exception."""
-    wrapper = openQAClientWrapper("WOPR", app_logger)
-    wrapper.scheme = "http"
-    job_id = "123"
-    filename = "test.log"
-    dest_path = "/tmp/test.log"
-    mock_client_property.return_value.session.get.side_effect = (
-        requests.exceptions.RequestException
-    )
-
-    with pytest.raises(openQAClientLogDownloadError):
-        wrapper.download_log_to_file(job_id, filename, dest_path)
-
-
-@patch("openqa_log_local.client.openQAClientWrapper.client", new_callable=PropertyMock)
-def test_download_log_to_file_1_success(mock_client_property, app_logger):
-    """Test successful download of a log file using download_log_to_file_1."""
+    """Test successful download of a log file using download_log_to_file."""
     wrapper = openQAClientWrapper("WOPR", app_logger)
     job_id = "123"
     filename = "test_log.txt"
@@ -284,7 +248,7 @@ def test_download_log_to_file_1_success(mock_client_property, app_logger):
 
     # Mock open() to check what gets written to the file
     with patch("builtins.open", mock_open()) as mocked_file:
-        wrapper.download_log_to_file_1(job_id, filename, destination_path)
+        wrapper.download_log_to_file(job_id, filename, destination_path)
 
         # Assert that do_request was called correctly
         mock_client_property.return_value.do_request.assert_called_once()
@@ -297,8 +261,8 @@ def test_download_log_to_file_1_success(mock_client_property, app_logger):
 
 
 @patch("openqa_log_local.client.openQAClientWrapper.client", new_callable=PropertyMock)
-def test_download_log_to_file_1_request_exception(mock_client_property, app_logger):
-    """Test download_log_to_file_1 for a request exception."""
+def test_download_log_to_file_request_exception(mock_client_property, app_logger):
+    """Test download_log_to_file for a request exception."""
     wrapper = openQAClientWrapper("WOPR", app_logger)
     job_id = "123"
     filename = "test.log"
@@ -309,4 +273,4 @@ def test_download_log_to_file_1_request_exception(mock_client_property, app_logg
     )
 
     with pytest.raises(openQAClientLogDownloadError):
-        wrapper.download_log_to_file_1(job_id, filename, dest_path)
+        wrapper.download_log_to_file(job_id, filename, dest_path)
