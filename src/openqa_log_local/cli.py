@@ -1,3 +1,5 @@
+"""CLI interface for openqa_log_local."""
+
 import click
 import logging
 import json

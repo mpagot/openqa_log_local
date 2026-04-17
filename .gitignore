@@ -42,3 +42,6 @@ logs/*.log
 
 # Ignore default local cache
 .cache/
+
+# Generated documentation (pdoc output)
+site/

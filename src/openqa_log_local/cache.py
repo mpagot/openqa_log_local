@@ -1,3 +1,5 @@
+"""Cache management for openQA job data and log files."""
+
 import os
 import logging
 import json
@@ -212,8 +214,7 @@ class openQACache:
     def get_log_filename(
         self, job_id: str, log_file: str, check_existence: bool = True
     ) -> str:
-        """
-        Retrieves the full filesystem path for a specific cached log file.
+        """Retrieves the full filesystem path for a specific cached log file.
 
         By default, it also checks if the file exists. Can be used both to
         check if a file if already cached or to get the path where to cache a new file.

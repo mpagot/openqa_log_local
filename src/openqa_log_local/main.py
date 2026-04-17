@@ -1,3 +1,5 @@
+"""Main module orchestrating client and cache for openQA log management."""
+
 import logging
 import re
 from typing import Any, Dict, List, Optional
@@ -7,8 +9,7 @@ from .cache import openQACache
 
 
 class openQA_log_local:
-    """
-    Main class for the openqa_log_local library.
+    """Main class for the openqa_log_local library.
 
     This class provides the main interface for interacting with the library.
     It orchestrates the client and cache to provide a seamless experience.
@@ -22,8 +23,7 @@ class openQA_log_local:
         time_to_live: Optional[int] = -1,
         logger: Optional[logging.Logger] = None,
     ):
-        """
-        Initializes the openQA_log_local library.
+        """Initializes the openQA_log_local library.
 
         Args:
             host (str): The openQA host URL.
@@ -77,6 +77,7 @@ class openQA_log_local:
 
     def get_details(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get job details for a specific openQA job.
+
         Start looking for in the cache and eventually fall back to fetch from openQA.
         If sucesfully fetched from opnQA, the data is saved in the cache.
 
