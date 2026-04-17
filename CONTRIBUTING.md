@@ -26,17 +26,47 @@ To create a new package version and trigger the release workflow, follow these s
     ```
     For example: `uv version 1.0.0`
 
-2.  Create a Git tag for the new version:
+2.  Commit the version change:
+    ```bash
+    git add pyproject.toml
+    git commit -m "Release <new-version-number>"
+    ```
+
+3.  Create a Git tag for the new version:
     ```bash
     git tag v<new-version-number>
     ```
     For example: `git tag v1.0.0`
 
-3.  Push the changes and the new tag to the remote repository:
+4.  Push the branch first, then push the tags separately to the remote repository:
     ```bash
-    git push origin main --tags
+    git push origin main
+    git push origin --tags
     ```
-    This will push the updated `pyproject.toml` (containing the new version) and the new tag, which will trigger the `publish.yml` workflow to build and publish the package to PyPI.
+    **Important:** Always push the branch before the tags. This prevents a race condition where the tag triggers the release workflow on a commit that doesn't yet exist on the remote `main` branch if the branch push fails.
+
+5.  Monitor the release workflow and approve the deployment:
+    The `publish.yml` workflow will build the package and create a GitHub Release.
+    Publishing to PyPI is paused pending manual approval. You must go to the repository's GitHub Actions page, review the pending `pypi_publish` job, and click **Approve and Deploy**.
+
+### Recovery Procedure
+
+If a release workflow fails or is triggered incorrectly (e.g., a "ghost run" because the branch push failed but the tag was pushed), follow these steps to recover cleanly:
+
+1.  Cancel the pending or running workflow in GitHub Actions:
+    ```bash
+    gh run cancel <RUN_ID>
+    ```
+2.  Delete the tag locally and remotely:
+    ```bash
+    git tag -d v<version>
+    git push origin --delete v<version>
+    ```
+3.  Fix any underlying issues, ensure your commit is pushed to `main` successfully, then re-tag and re-push the tag:
+    ```bash
+    git tag v<version>
+    git push origin --tags
+    ```
 
 ## Publishing to PyPI
 
@@ -46,6 +76,6 @@ To configure this, you need to:
 
 1.  Go to your project's settings on PyPI.
 2.  Add a new "pending publisher".
-3.  Add the GitHub repository owner, repository name, workflow name (`publish.yml`) and environment (`pypi`).
+3.  Add the GitHub repository owner, repository name, workflow name (`publish.yml`) and environment (`openqa_log_local_PyPI`).
 
-Once configured, the `publish.yml` workflow will automatically publish new releases to PyPI when a new version tag is pushed to the repository.
+Once configured, the `publish.yml` workflow will automatically publish new releases to PyPI when a new version tag is pushed to the repository and the deployment is manually approved.

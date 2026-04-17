@@ -19,6 +19,9 @@ openqa-log-local = "openqa_log_local.cli:cli"
 requires = ["uv_build>=0.9.11,<0.10.0"]
 build-backend = "uv_build"
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [dependency-groups]
 dev = [
     "black>=25.11.0",

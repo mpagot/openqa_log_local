@@ -1,3 +1,5 @@
+"""Client wrapper for openQA API interactions."""
+
 import logging
 import re
 from typing import Any, List, Optional
@@ -7,8 +9,6 @@ import requests
 import requests.exceptions
 from openqa_client.client import OpenQA_Client
 from openqa_client.exceptions import RequestError
-
-"""Custom exception classes for the application."""
 
 
 class openQAClientError(Exception):
@@ -30,7 +30,7 @@ class openQAClientConnectionError(openQAClientError):
 
 
 class openQAClientLogDownloadError(openQAClientError):
-    """Raised for error during log file downloads"""
+    """Raised for error during log file downloads."""
 
     pass
 
@@ -49,12 +49,12 @@ class openQAClientWrapper:
     ) -> None:
         """Initializes the client wrapper.
 
-            It does not create an OpenQA_Client instance immediately. The client
-            is lazily initialized on first use.
+        It does not create an OpenQA_Client instance immediately. The client
+        is lazily initialized on first use.
 
-            Args:
-                hostname (str): The openQA host, without scheme.
-                logger (logging.Logger): The logger instance to use.
+        Args:
+            hostname (str): The openQA host, without scheme.
+            logger (logging.Logger): The logger instance to use.
 
         Raises:
             ValueError: If the hostname contains '://'.
@@ -78,9 +78,12 @@ class openQAClientWrapper:
     @property
     def client(self) -> OpenQA_Client:
         """Lazily initializes and returns the OpenQA_Client instance.
+
         It tries to connect using https first, and fall back to http if it fails.
+
         Returns:
             OpenQA_Client: The initialized openqa_client instance.
+
         Raises:
             openQAClientConnectionError: If both HTTPS and HTTP connections fail.
         """
@@ -154,8 +157,7 @@ class openQAClientWrapper:
             raise openQAClientConnectionError(error_message) from e
 
     def get_log_list(self, job_id: str) -> List[str]:
-        """
-        Get a list of log files associated to an openQA job.
+        """Get a list of log files associated to an openQA job.
 
         This method does not download any log files. It fetches the
         'downloads_ajax' page and parses it to extract the filenames.
@@ -166,7 +168,6 @@ class openQAClientWrapper:
         Returns:
             List[str]: A list of log file names.
         """
-
         # This method is not based on client but only on request,
         # run a dummy call to client
         # to have schema properly populated

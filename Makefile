@@ -1,4 +1,4 @@
-.PHONY: all lint ruff black mypy test build
+.PHONY: all lint ruff black mypy docstyle test build
 
 all: lint test
 
@@ -18,6 +18,9 @@ test:
 
 build:
 	uv build
+
+docstyle:
+	uv run ruff check --select D src/
 
 doc:
 	uv run pdoc --docformat google src/openqa_log_local

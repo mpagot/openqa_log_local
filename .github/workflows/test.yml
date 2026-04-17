@@ -31,3 +31,6 @@ jobs:
 
       - name: Test package build
         run: make build
+
+      - name: Check documentation builds
+        run: uv run pdoc --docformat google -o /tmp/docs src/openqa_log_local
