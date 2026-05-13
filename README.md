@@ -32,7 +32,7 @@ To use the library in your Python project, you first need to import the `openQA_
 from openqa_log_local import openQA_log_local
 ```
 
-Then, you can create an instance of the class, providing the openQA host URL:
+Then, you can create an instance of the class, providing the openQA hostname (without `http://` or `https://` prefix):
 
 ```python
 oll = openQA_log_local(host='openqa.opensuse.org')
@@ -100,6 +100,13 @@ To filter log files by name pattern:
 
 ```bash
 openqa-log-local get-log-list --host openqa.opensuse.org --job-id 1234 --name-pattern ".*txt"
+```
+
+To filter log files by name pattern:
+
+```bash
+openqa-log-local get-log-list --host openqa.opensuse.org --job-id 1234 --name-pattern ".*txt"
+openqa-log-local get-log-data --host openqa.opensuse.org --job-id 1234 --filename autoinst-log.txt
 ```
 
 #### Get Log Filename
