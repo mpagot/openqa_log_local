@@ -1,10 +1,14 @@
 import pytest
-from unittest.mock import MagicMock, PropertyMock, patch, mock_open
+from unittest.mock import MagicMock, PropertyMock, patch, mock_open, call
 
 import requests
-from openqa_client.exceptions import RequestError
+from openqa_client.exceptions import (
+    ConnectionError as OQAConnectionError,
+    RequestError,
+)
 
 from openqa_log_local.client import (
+    TimeoutHTTPAdapter,
     openQAClientWrapper,
     openQAClientAPIError,
     openQAClientConnectionError,
@@ -25,8 +29,23 @@ def test_client_initializationi_invalid(app_logger):
         openQAClientWrapper("telnet://WOPR", app_logger)
 
 
+def test_client_initialization_invalid_scheme(app_logger):
+    """Test that an invalid scheme raises ValueError."""
+    with pytest.raises(ValueError, match="Invalid scheme"):
+        openQAClientWrapper("WOPR", app_logger, scheme="ftp")
+
+
+def test_client_initialization_with_scheme(app_logger):
+    """Test that providing a scheme stores it and skips auto-detection."""
+    client = openQAClientWrapper("WOPR", app_logger, scheme="http")
+    assert client.hostname == "WOPR"
+    assert client.scheme == "http"
+    assert client._client is None
+
+
 def test_lazy_client_initialization(app_logger):
-    """Test that the OpenQA_Client is lazily initialized and SSL warning is logged."""
+    """Test that the OpenQA_Client is lazily initialized with peerbuster
+    retries, SSL verification disabled, and TimeoutHTTPAdapter mounted."""
     client = openQAClientWrapper("WOPR", app_logger)
 
     # Client should not be initialized yet
@@ -42,12 +61,21 @@ def test_lazy_client_initialization(app_logger):
         # Accessing the property
         initialized_client = client.client
 
-        # Check that OpenQA_Client was called once
-        mock_openqa_client.assert_called_with(server="https://WOPR")
+        # Check that OpenQA_Client was called with peerbuster retries
+        mock_openqa_client.assert_called_with(
+            server="https://WOPR", retries=1, wait=2
+        )
         # Check that the instance is now stored
         assert client._client is not None
         # Check that SSL verification is disabled
         assert initialized_client.session.verify is False
+        # Check that TimeoutHTTPAdapter was mounted for both schemes
+        mount_calls = initialized_client.session.mount.call_args_list
+        assert len(mount_calls) == 2
+        assert mount_calls[0][0][0] == "https://"
+        assert mount_calls[1][0][0] == "http://"
+        assert isinstance(mount_calls[0][0][1], TimeoutHTTPAdapter)
+        assert isinstance(mount_calls[1][0][1], TimeoutHTTPAdapter)
 
 
 @patch("openqa_log_local.client.openQAClientWrapper.client", new_callable=PropertyMock)
@@ -166,7 +194,7 @@ def test_get_log_list_http_error(mock_client, mock_get, app_logger):
 
 @patch("openqa_log_local.client.OpenQA_Client")
 def test_client_https_fallback(MockOpenQA_Client, app_logger):
-    """Test the client's fallback from HTTPS to HTTP."""
+    """Test the client's fallback from HTTPS to HTTP with peerbuster retries."""
     mock_https_client = MagicMock()
     mock_https_client.openqa_request.side_effect = RequestError(
         "GET", "url", 500, "Internal Server Error"
@@ -188,6 +216,11 @@ def test_client_https_fallback(MockOpenQA_Client, app_logger):
     client = openQAClientWrapper(hostname="example.com", logger=app_logger)
     client.get_job_details("123")
 
+    # verify both calls used peerbuster retries
+    assert MockOpenQA_Client.call_args_list == [
+        call(server="https://example.com", retries=1, wait=2),
+        call(server="http://example.com", retries=1, wait=2),
+    ]
     # verify https has been called first, then http
     assert mock_https_client.openqa_request.call_count == 1
     assert (
@@ -210,6 +243,9 @@ def test_client_https_success(MockOpenQA_Client, app_logger):
     client = openQAClientWrapper(hostname="example.com", logger=app_logger)
     details = client.get_job_details("123")
 
+    MockOpenQA_Client.assert_called_once_with(
+        server="https://example.com", retries=1, wait=2
+    )
     assert (
         mock_https_client.openqa_request.call_count == 2
     )  # one for check, one for get_job_details
@@ -274,3 +310,136 @@ def test_download_log_to_file_request_exception(mock_client_property, app_logger
 
     with pytest.raises(openQAClientLogDownloadError):
         wrapper.download_log_to_file(job_id, filename, dest_path)
+
+
+@patch("openqa_log_local.client.OpenQA_Client")
+def test_client_direct_scheme_skips_probe(MockOpenQA_Client, app_logger):
+    """Test that providing scheme= skips the HTTPS probe and connects directly."""
+    mock_http_client = MagicMock()
+    mock_http_client.openqa_request.side_effect = [
+        {"jobs": []},  # connectivity check
+        {"job": {"id": 42}},  # get_job_details
+    ]
+    MockOpenQA_Client.return_value = mock_http_client
+
+    client = openQAClientWrapper(
+        hostname="example.com", logger=app_logger, scheme="http"
+    )
+    details = client.get_job_details("42")
+
+    # Only one OpenQA_Client should have been created — with http directly
+    MockOpenQA_Client.assert_called_once_with(
+        server="http://example.com", retries=1, wait=2
+    )
+    assert client.scheme == "http"
+    assert details == {"id": 42}
+
+
+@patch("openqa_log_local.client.OpenQA_Client")
+def test_client_timeout_exception_caught_during_probe(MockOpenQA_Client, app_logger):
+    """Test that requests.exceptions.Timeout is caught during the probe."""
+    mock_client = MagicMock()
+    mock_client.openqa_request.side_effect = requests.exceptions.Timeout(
+        "Connection timed out"
+    )
+    MockOpenQA_Client.return_value = mock_client
+
+    client = openQAClientWrapper(hostname="example.com", logger=app_logger)
+    with pytest.raises(openQAClientConnectionError):
+        client.client
+
+
+@patch("openqa_log_local.client.openQAClientWrapper.client", new_callable=PropertyMock)
+def test_get_job_details_timeout_raises_connection_error(
+    mock_client, app_logger
+):
+    """Test that a Timeout during get_job_details raises openQAClientConnectionError."""
+    wrapper = openQAClientWrapper("WOPR", app_logger)
+    mock_client.return_value.openqa_request.side_effect = (
+        requests.exceptions.Timeout("read timed out")
+    )
+
+    with pytest.raises(openQAClientConnectionError):
+        wrapper.get_job_details("123")
+
+
+def test_timeout_http_adapter_sets_default_timeout():
+    """Test that TimeoutHTTPAdapter injects timeout into kwargs."""
+    adapter = TimeoutHTTPAdapter(timeout=(5, 15))
+    assert adapter.timeout == (5, 15)
+
+    # Default timeout tuple is stored and used by send()
+    adapter_default = TimeoutHTTPAdapter()
+    assert adapter_default.timeout == (10, 30)
+
+
+def test_timeout_http_adapter_respects_explicit_timeout():
+    """Test that TimeoutHTTPAdapter does not override an explicit timeout."""
+    adapter = TimeoutHTTPAdapter(timeout=(5, 15))
+
+    # Simulate kwargs already containing a timeout
+    kwargs = {"timeout": 60}
+    kwargs.setdefault("timeout", adapter.timeout)
+    assert kwargs["timeout"] == 60  # not overridden
+
+
+@patch("openqa_log_local.client.OpenQA_Client")
+def test_client_oqa_connection_error_caught_during_probe(MockOpenQA_Client, app_logger):
+    """Test that openqa_client.exceptions.ConnectionError is caught during probe."""
+    mock_client = MagicMock()
+    mock_client.openqa_request.side_effect = OQAConnectionError(
+        requests.exceptions.ConnectionError("upstream wrapped connection error")
+    )
+    MockOpenQA_Client.return_value = mock_client
+
+    client = openQAClientWrapper(hostname="example.com", logger=app_logger)
+    with pytest.raises(openQAClientConnectionError, match="Failed to connect"):
+        client.client
+
+
+@patch("openqa_log_local.client.OpenQA_Client")
+def test_client_oqa_connection_error_triggers_http_fallback(
+    MockOpenQA_Client, app_logger
+):
+    """Test that openqa_client.exceptions.ConnectionError during the HTTPS
+    probe is caught and triggers the HTTP fallback (auto-detect path)."""
+    mock_https_client = MagicMock()
+    mock_https_client.openqa_request.side_effect = OQAConnectionError(
+        requests.exceptions.ConnectionError("HTTPS connection refused")
+    )
+
+    mock_http_client = MagicMock()
+    mock_http_client.openqa_request.side_effect = [
+        {"jobs": []},  # connectivity check
+        {"job": {"id": 99}},  # get_job_details
+    ]
+
+    def client_side_effect(server, **kwargs):
+        if server.startswith("https://"):
+            return mock_https_client
+        return mock_http_client
+
+    MockOpenQA_Client.side_effect = client_side_effect
+
+    client = openQAClientWrapper(hostname="example.com", logger=app_logger)
+    details = client.get_job_details("99")
+
+    assert MockOpenQA_Client.call_args_list == [
+        call(server="https://example.com", retries=1, wait=2),
+        call(server="http://example.com", retries=1, wait=2),
+    ]
+    assert client.scheme == "http"
+    assert details == {"id": 99}
+
+
+@patch("openqa_log_local.client.openQAClientWrapper.client", new_callable=PropertyMock)
+def test_get_job_details_oqa_connection_error(mock_client, app_logger):
+    """Test that openqa_client.exceptions.ConnectionError during
+    get_job_details raises openQAClientConnectionError."""
+    wrapper = openQAClientWrapper("WOPR", app_logger)
+    mock_client.return_value.openqa_request.side_effect = OQAConnectionError(
+        requests.exceptions.ConnectionError("upstream connection lost")
+    )
+
+    with pytest.raises(openQAClientConnectionError, match="Connection to host"):
+        wrapper.get_job_details("123")

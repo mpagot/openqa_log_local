@@ -26,14 +26,55 @@ def test_initialization_hostname_parsing(app_logger):
             assert oll.hostname == host
 
 
+def test_initialization_hostname_with_scheme(app_logger):
+    """Test that URLs with http:// or https:// schemes are accepted
+    and the hostname and scheme are correctly extracted."""
+    with (
+        patch("openqa_log_local.main.openQAClientWrapper") as mock_client,
+        patch("openqa_log_local.main.openQACache"),
+    ):
+        oll = openQA_log_local(host="http://example.com", logger=app_logger)
+        assert oll.hostname == "example.com"
+        mock_client.assert_called_with("example.com", app_logger, scheme="http")
+
+        oll = openQA_log_local(host="https://example.com", logger=app_logger)
+        assert oll.hostname == "example.com"
+        mock_client.assert_called_with("example.com", app_logger, scheme="https")
+
+        oll = openQA_log_local(host="http://example.com/", logger=app_logger)
+        assert oll.hostname == "example.com"
+        mock_client.assert_called_with("example.com", app_logger, scheme="http")
+
+        oll = openQA_log_local(host="http://example.com:8080", logger=app_logger)
+        assert oll.hostname == "example.com:8080"
+        mock_client.assert_called_with(
+            "example.com:8080", app_logger, scheme="http"
+        )
+
+
+def test_initialization_hostname_bare_passes_no_scheme(app_logger):
+    """Test that a bare hostname passes scheme=None to the client wrapper."""
+    with (
+        patch("openqa_log_local.main.openQAClientWrapper") as mock_client,
+        patch("openqa_log_local.main.openQACache"),
+    ):
+        openQA_log_local(host="example.com", logger=app_logger)
+        mock_client.assert_called_with("example.com", app_logger, scheme=None)
+
+
 def test_initialization_hostname_invalid(app_logger):
     """Test that invalid hostnames raise ValueError."""
-    for host in ["http://", "https://", "", "example.com/foo", "../", "a/b"]:
-        with pytest.raises(
-            ValueError,
-            match=r"Invalid host value: '.*'\. Host should be a hostname without scheme "
-            r"\(e\.g\. 'openqa\.opensuse\.org' instead of 'https://openqa\.opensuse\.org'\)\.",
-        ):
+    for host in [
+        "http://",
+        "https://",
+        "",
+        "example.com/foo",
+        "../",
+        "a/b",
+        "http://example.com/foo",
+        "ftp://example.com",
+    ]:
+        with pytest.raises(ValueError):
             openQA_log_local(host=host, logger=app_logger)
 
 

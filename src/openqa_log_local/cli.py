@@ -3,8 +3,24 @@
 import click
 import logging
 import json
+import functools
 from .main import openQA_log_local
+from .client import openQAClientError
 from importlib.metadata import version
+
+
+def _handle_errors(func):
+    """Decorator that catches library exceptions and shows user-friendly messages."""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except (openQAClientError, ValueError) as e:
+            click.echo(f"Error: {e}", err=True)
+            raise SystemExit(1)
+
+    return wrapper
 
 
 @click.group()
@@ -12,7 +28,7 @@ from importlib.metadata import version
 @click.option(
     "--host",
     required=True,
-    help="The openQA hostname, without scheme (e.g. openqa.example.com).",
+    help="The openQA host (e.g. openqa.example.com or http://openqa.example.com).",
 )
 @click.option(
     "--log-level",
@@ -33,12 +49,16 @@ def cli(ctx, host, log_level):
     numeric_level = getattr(logging, log_level.upper(), None)
     if not isinstance(numeric_level, int):
         raise ValueError(f"Invalid log level: {log_level}")
-    logging.basicConfig(level=numeric_level)
+    logging.basicConfig(
+        level=numeric_level,
+        format="%(asctime)s %(levelname)s:%(name)s:%(message)s",
+    )
 
 
 @cli.command()
 @click.option("--job-id", required=True, type=int, help="The job ID.")
 @click.pass_context
+@_handle_errors
 def get_details(ctx, job_id):
     """Get job details for a specific openQA job."""
     oll = openQA_log_local(host=ctx.obj["HOST"])
@@ -53,6 +73,7 @@ def get_details(ctx, job_id):
 @click.option("--job-id", required=True, type=int, help="The job ID.")
 @click.option("--name-pattern", help="A regex pattern to filter log files.")
 @click.pass_context
+@_handle_errors
 def get_log_list(ctx, job_id, name_pattern):
     """Get a list of log files associated to an openQA job.
 
@@ -70,6 +91,7 @@ def get_log_list(ctx, job_id, name_pattern):
 @click.option("--job-id", required=True, type=int, help="The job ID.")
 @click.option("--filename", required=True, help="The name of the log file.")
 @click.pass_context
+@_handle_errors
 def get_log_filename(ctx, job_id, filename):
     """Get absolute path with filename of a single log file from the cache.
 
