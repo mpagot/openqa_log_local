@@ -32,10 +32,13 @@ To use the library in your Python project, you first need to import the `openQA_
 from openqa_log_local import openQA_log_local
 ```
 
-Then, you can create an instance of the class, providing the openQA hostname (without `http://` or `https://` prefix):
+Then, you can create an instance of the class, providing the openQA host as either a bare hostname or a full URL with scheme:
 
 ```python
 oll = openQA_log_local(host='openqa.opensuse.org')
+
+# Or with an explicit scheme (skips HTTPS/HTTP auto-detection):
+oll = openQA_log_local(host='http://openqa.opensuse.org')
 
 # Get job details
 log_details = oll.get_details(job_id=1234)
@@ -73,7 +76,7 @@ The package also provides a command-line interface (CLI) for interacting with op
 
 To see INFO and DEBUG messages, you can use the `--log-level` option:
 ```bash
-uv run openqa-log-local --log-level INFO get-log-list --host openqa.opensuse.org --job-id 1234
+uv run openqa-log-local --host openqa.opensuse.org --log-level INFO get-log-list --job-id 1234
 ```
 
 This will show messages indicating whether there was a cache hit or miss.
@@ -81,38 +84,31 @@ This will show messages indicating whether there was a cache hit or miss.
 #### Get Job Details
 
 ```bash
-openqa-log-local get-details --host openqa.opensuse.org --job-id 1234
+openqa-log-local --host openqa.opensuse.org get-details --job-id 1234
 ```
 
 Run via `uv` if you have used `uv` to install it
 
 ```bash
-uv run openqa-log-local get-details --host openqa.opensuse.org --job-id 1234
+uv run openqa-log-local --host openqa.opensuse.org get-details --job-id 1234
 ```
 
 #### Get Log List
 
 ```bash
-openqa-log-local get-log-list --host openqa.opensuse.org --job-id 1234
+openqa-log-local --host openqa.opensuse.org get-log-list --job-id 1234
 ```
 
 To filter log files by name pattern:
 
 ```bash
-openqa-log-local get-log-list --host openqa.opensuse.org --job-id 1234 --name-pattern ".*txt"
-```
-
-To filter log files by name pattern:
-
-```bash
-openqa-log-local get-log-list --host openqa.opensuse.org --job-id 1234 --name-pattern ".*txt"
-openqa-log-local get-log-data --host openqa.opensuse.org --job-id 1234 --filename autoinst-log.txt
+openqa-log-local --host openqa.opensuse.org get-log-list --job-id 1234 --name-pattern ".*txt"
 ```
 
 #### Get Log Filename
 
 ```bash
-openqa-log-local get-log-filename --host openqa.opensuse.org --job-id 1234 --filename autoinst-log.txt
+openqa-log-local --host openqa.opensuse.org get-log-filename --job-id 1234 --filename autoinst-log.txt
 ```
 
 

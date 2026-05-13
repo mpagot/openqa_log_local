@@ -3,6 +3,7 @@
 import logging
 import re
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from .client import openQAClientWrapper, openQAClientLogDownloadError
 from .cache import openQACache
@@ -26,7 +27,10 @@ class openQA_log_local:
         """Initializes the openQA_log_local library.
 
         Args:
-            host (str): The openQA hostname, without scheme (e.g. 'openqa.opensuse.org').
+            host (str): The openQA host — either a bare hostname
+                (e.g. 'openqa.opensuse.org') or a full URL with scheme
+                (e.g. 'http://openqa.opensuse.org').  When a scheme is
+                provided, HTTPS/HTTP auto-detection is skipped.
             cache_location (Optional[str]): The directory to store cached logs.
                                         Defaults to ".cache".
             max_size (Optional[int]): The maximum size of the cache in bytes.
@@ -47,11 +51,30 @@ class openQA_log_local:
         else:
             self.logger = logger
 
-        if "/" in host or "\\" in host or len(host) == 0:
-            raise ValueError(
-                f"Invalid host value: '{host}'. Host should be a hostname without scheme "
-                "(e.g. 'openqa.opensuse.org' instead of 'https://openqa.opensuse.org')."
-            )
+        # Parse host: accept both bare hostnames and full URLs with scheme.
+        scheme: Optional[str] = None
+        if not host or not host.strip():
+            raise ValueError(f"Invalid host value: '{host}'")
+
+        if "://" in host:
+            parsed = urlparse(host)
+            if parsed.scheme not in ("http", "https"):
+                raise ValueError(f"Invalid host value: '{host}'")
+            if not parsed.hostname:
+                raise ValueError(f"Invalid host value: '{host}'")
+            if parsed.path and parsed.path != "/":
+                raise ValueError(f"Invalid host value: '{host}'")
+            hostname = parsed.hostname
+            if parsed.port:
+                hostname = f"{hostname}:{parsed.port}"
+            scheme = parsed.scheme
+        else:
+            if "/" in host or "\\" in host:
+                raise ValueError(f"Invalid host value: '{host}'")
+            hostname = host
+
+        self.hostname = hostname
+        self.client = openQAClientWrapper(self.hostname, self.logger, scheme=scheme)
 
         cl = (
             cache_location
@@ -66,9 +89,6 @@ class openQA_log_local:
         tl = time_to_live if time_to_live is not None else -1
         if tl < -1:
             raise ValueError("time_to_live cannot be smaller than -1")
-
-        self.hostname = host
-        self.client = openQAClientWrapper(self.hostname, self.logger)
 
         self.cache = openQACache(
             cl,
